@@ -46,22 +46,55 @@ void FVirtualBridgeModule::ShutdownModule()
 
 void FVirtualBridgeModule::LoadConfig() {
 	// Load Loupedeck endpoint from config file
-	FString ConfigPath = FPaths::ProjectDir() + TEXT("VirtualBridgeConfig.json");
+	FString ConfigPath = FPaths::ProjectDir() / TEXT("VirtualBridgeConfig.json");
 	FString ConfigContent;
 
-	if (FFileHelper::LoadFileToString(ConfigContent, *ConfigPath)) {
-		TSharedPtr<FJsonObject> JsonObject;
-		TSharedRef<TJsonReader<>> Reader = TJsonReaderFactory<>::Create(ConfigContent);
+	IPlatformFile& PlatformFile = FPlatformFileManager::Get().GetPlatformFile();
 
-		if (FJsonSerializer::Deserialize(Reader, JsonObject) && JsonObject.IsValid()) {
-			LoupedeckEndpoint = JsonObject->GetStringField("LoupedeckEndpoint");
-			UE_LOG(LogVirtualBridge, Log, TEXT("Loaded Loupedeck endpoint: %s"), *LoupedeckEndpoint);
+	// If file exists, load it
+	if (PlatformFile.FileExists(*ConfigPath))
+	{
+		if (FFileHelper::LoadFileToString(ConfigContent, *ConfigPath))
+		{
+			TSharedPtr<FJsonObject> JsonObject;
+			TSharedRef<TJsonReader<>> Reader = TJsonReaderFactory<>::Create(ConfigContent);
+
+			if (FJsonSerializer::Deserialize(Reader, JsonObject) && JsonObject.IsValid())
+			{
+				LoupedeckEndpoint = JsonObject->GetStringField("LoupedeckEndpoint");
+				UE_LOG(LogVirtualBridge, Log, TEXT("Loaded Loupedeck endpoint: %s"), *LoupedeckEndpoint);
+				return; // Done
+			}
 		}
+
+		// If we get here, file exists but failed to parse
+		UE_LOG(LogVirtualBridge, Warning, TEXT("Config file invalid, using default endpoint."));
 	}
-	else {
-		// Default fallback
-		LoupedeckEndpoint = TEXT("http://localhost:7070/selection");
-		UE_LOG(LogVirtualBridge, Warning, TEXT("Config not found, using default: %s"), *LoupedeckEndpoint);
+	else
+	{
+		UE_LOG(LogVirtualBridge, Warning, TEXT("Config file not found, generating default config."));
+	}
+
+	// --- Default fallback ---
+	LoupedeckEndpoint = TEXT("http://localhost:7070/selection");
+
+	// Build JSON object for default config
+	TSharedPtr<FJsonObject> DefaultJson = MakeShareable(new FJsonObject);
+	DefaultJson->SetStringField(TEXT("LoupedeckEndpoint"), LoupedeckEndpoint);
+
+	// Serialize JSON to string
+	FString OutputString;
+	TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&OutputString);
+	FJsonSerializer::Serialize(DefaultJson.ToSharedRef(), Writer);
+
+	// Save to disk
+	if (FFileHelper::SaveStringToFile(OutputString, *ConfigPath))
+	{
+		UE_LOG(LogVirtualBridge, Log, TEXT("Default config.json created at %s"), *ConfigPath);
+	}
+	else
+	{
+		UE_LOG(LogVirtualBridge, Error, TEXT("Failed to create default config.json at %s"), *ConfigPath);
 	}
 }
 
