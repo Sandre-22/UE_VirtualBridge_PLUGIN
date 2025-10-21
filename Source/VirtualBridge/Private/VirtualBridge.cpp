@@ -75,7 +75,7 @@ void FVirtualBridgeModule::LoadConfig() {
 	}
 
 	// --- Default fallback ---
-	LoupedeckEndpoint = TEXT("http://192.168.10.215:7070/selection");
+	LoupedeckEndpoint = TEXT("http://192.168.10.213:7070/selection");
 
 	// Build JSON object for default config
 	TSharedPtr<FJsonObject> DefaultJson = MakeShareable(new FJsonObject);
